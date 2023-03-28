@@ -1,8 +1,11 @@
 function class_diff_table = compare_classes(c1, c2)
     % COMPARE_CLASSES  Find the difference between two classes.
-    %   COMPARE_CLASSES(C1,C2) finds the properties of each class, their values, then checks for equivalence WRT the other. If they are different values, the property in question is placed in a table. Properties unique to C1/C2 are also added, with NaN in place for the other class' value for that property.
-
-    %% region
+    %   COMPARE_CLASSES(C1,C2) finds the properties of each class, their values, then
+    %   checks for equivalence WRT the other. If they are different values, the
+    %   property in question is placed in a table.
+    %
+    %   Properties unique to C1/C2 are also added, with NaN in place as
+    %   the other class' value for that property.
     % formatter ignore 2
     c1_props = properties(c1);
     c2_props = properties(c2);
@@ -10,13 +13,11 @@ function class_diff_table = compare_classes(c1, c2)
     c1_unique_props = setdiff(c1_props, c2_props);
     c2_unique_props = setdiff(c2_props, c1_props);
 
-    props = union(c1_props(ismember(c1_props, c2_props)), c2_props(ismember(c2_props, c1_props)));
-
-    %% endregion
+    shared_props = union(c1_props(ismember(c1_props, c2_props)), c2_props(ismember(c2_props, c1_props)));
     class_diff_table = table();
 
-    for ii = 1:length(props)
-        shared_prop = char(props(ii));
+    for shared_prop_idx = 1:length(shared_props)
+        shared_prop = char(shared_props(shared_prop_idx));
         c1_currentProperty = getfield(c1, shared_prop);
         c2_currentProperty = getfield(c2, shared_prop);
 

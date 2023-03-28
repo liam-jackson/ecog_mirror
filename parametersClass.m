@@ -1,4 +1,4 @@
-classdef parametersClass < handle
+classdef parametersClass < dynamicprops
     % parametersClass defines container of relevant info for analysis parameters
     %   Pass: (ecog_preprocessed_path, event_duration, window, stride,
     %   grouping_var, topN_feat_pool, topN_feat_indiv).

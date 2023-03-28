@@ -2,22 +2,33 @@
 %%% Requires ECoG Preprocessed Data (epoched, formatted w/ AnalysisClass)
 
 close all; 
-clear all; 
+% clear all;
 clc;
+addpath("data/");
+addpath("utils/");
+
+% % Predefined Timing Analysis
+% timing_parameters = struct('timing_mode', [], ...
+%     'event_duration', 2000, ...
+%     'window', 50, ...
+%     'stride', 25);
+
+% Dynamic Windowing Analysis
+timing_parameters = struct('timing_mode', 'dynamic', ...
+    'fixed_number_features', 79);
 %%
 tStart = tic;
+
 % parametersClass instantiates an object to carry a lot of useful and
 % required data around. Also has methods to generate feature sets,
 % electrode data, etc. 
 p = parametersClass('/projectnb/busplab/Experiments/ECoG_fMRI_RS/Experiments/ECoG_Preprocessed_LJ/',... % path to data
-    2000,...            % event duration (ms)
-    50,...              % window (ms)
-    25,...              % stride (ms)
-    'none',...    % grouping variable
-    150,...             % topN feat pooled
-    30)                 % topN feat indiv
+    timing_parameters, ... % struct containing timing mode desired for analysis
+        'none', ... % grouping variable
+        150, ... % topN feat pooled
+        30) % topN feat indiv
 %%
-[~, edb] = p.generate_database; 
+[~, edb] = p.generate_database;
 set(0,'DefaultFigureWindowStyle','docked') % this is purely a preference thing
 %%
 % the following formats the feature sets based on a grouping variable

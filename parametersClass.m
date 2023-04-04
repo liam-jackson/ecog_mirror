@@ -52,14 +52,14 @@ classdef parametersClass < dynamicprops
             % Pass: (ecog_preprocessed_path, event_duration, window, stride,
             %     grouping_var, topN_feat_pool, topN_feat_indiv).
             if nargin > 0
+                params.check_contents(timing_parameters);
                 params.ecog_preprocessed_path = ecog_preprocessed_path;
                 params.epoched_data_path = fullfile(ecog_preprocessed_path, 'LocalEpoched');
                 params.ml_path = fullfile(ecog_preprocessed_path, 'MachineLearning');
                 params.algo_data_path = fullfile(params.ml_path, 'AlgoData');
                 params.LDA_path = fullfile(params.ml_path, 'LDA');
                 params.figs_quickref_path = fullfile(params.LDA_path, 'figs_quickref');
-                params.check_contents(timing_parameters);
-
+                params.times_path = fullfile(params.LDA_path, params.times_label);
                 params.grouping_label = sprintf('grouped_by_%s', grouping_var);
                 params.grouping_path = fullfile(params.times_path, params.grouping_label);
                 params.full_run_label = strcat(params.times_label, '_', params.grouping_label);
@@ -94,7 +94,6 @@ classdef parametersClass < dynamicprops
                 obj.times_label = sprintf('e%d_w%d_s%d', s.event_duration, s.window, s.stride);
             end
 
-            obj.times_path = fullfile(obj.ecog_preprocessed_path, obj.times_label);
         end
         function [database, electrodes_database] = generate_database(obj)
             % generate_database generates database of subject level data, database of electrode level data.

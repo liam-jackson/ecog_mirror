@@ -21,7 +21,7 @@ classdef parametersClass < dynamicprops
         grouping_variable % User-defined (but immutable after intialization) variable of electrodes_table to use as a grouping parameter. 'none' also valid
 
         timing_mode % dynamic or strict (or Not specified, default to strict and assert numeric values were passed in timing_parameters struct)
-        fixed_number_features
+        fixed_number_features % if timing mode is dynamic, this is included to dictate the number of features required/expected based on timings
         topN_feat_pool % Top N features to select from the mRMR results in the pooled data analyses
         topN_feat_indiv % Top N features to select from the mRMR results in the individual data analyses
     end
@@ -30,6 +30,7 @@ classdef parametersClass < dynamicprops
         event_duration % The event duration specifies how much of the epoched signal will be used in the discretization process
         window % The window size (ms) of the moving average filter
         stride % The stride length (ms) of the MVA window
+        dynamic_window_timings % Table containing cluster-specific timings (event, window, stride)
         current_group_value % Current grouping variable value, changes per iteration (eg. if grouping_variable is depth_type, current_group_value will cycle through 'depth', 'surface')
         pooled_electrode_feature_set % The pooled electrode feature set associated with the current_group_value
         individual_electrode_feature_set % The individual electrode feature sets associated with the current_group_value
@@ -43,6 +44,7 @@ classdef parametersClass < dynamicprops
         class_names_formal = {'Word Name', 'Consonants Name', 'Vowel Name'}; % "Formal" labels for titling figures, legends, etc
         sub_nums = [357, 362, 369, 372, 376]; % The subject identifiers as integers
         sub_nums_formal = {'S357', 'S362', 'S369', 'S372', 'S376'}; % The subject identifiers as strings
+        sampling_frequency = 1000; % The data was captured at 1kHz
     end
     methods
         % Constructor:
@@ -66,7 +68,7 @@ classdef parametersClass < dynamicprops
                 params.grouping_variable = grouping_var;
                 params.topN_feat_pool = topN_feat_pool;
                 params.topN_feat_indiv = topN_feat_indiv;
-
+                params.dynamic_window_timings = readtable('data/dynamic_window_per_cluster.xlsx');
                 params.electrodes_table = load('electrodes.mat').electrodes;
             end
 
@@ -149,7 +151,11 @@ classdef parametersClass < dynamicprops
                         analysis_class = load(fullfile(raw_data_filelist(file_idx).folder, raw_data_filelist(file_idx).name), 'preprocessed_data');
 
                         preprocessed_data = analysis_class.preprocessed_data.data;
-                        shortened_data = shorten_multiple_epoch(preprocessed_data, alignment_type, obj.event_duration);
+                        if strcmp(obj.timing_mode, "strict")
+                            shortened_data = shorten_multiple_epoch(preprocessed_data, alignment_type, obj.event_duration);
+                        elseif strcmp(obj.timing_mode, "dynamic")
+                            shortened_data = preprocessed_data; % to be shortened later in edb generation
+                        end
                         data_per_electrode = cellfun(@squeeze, num2cell(shortened_data, [3, 2]), 'UniformOutput', false);
 
                         database_row_temp.(table_col) = {data_per_electrode};
@@ -166,6 +172,7 @@ classdef parametersClass < dynamicprops
             if ~isfile(fullfile(obj.times_path, 'electrodes_database.mat'))
                 electrodes_database = obj.electrodes_table;
                 electrodes_database.feat_set = cell([height(electrodes_database), 1]);
+                electrodes_database.article_cluster_name = cell([height(electrodes_database), 1]);
                 sub_nums_vector = electrodes_database.subject;
                 surf_shapes = {'s', 'v', 'z', 'a', 'i'};
                 [~, ~, ic] = unique(sub_nums_vector);
@@ -177,17 +184,39 @@ classdef parametersClass < dynamicprops
                     row_align = electrodes_database.type(electrodes_row_idx);
                     row_idx_LocalProcessed = electrodes_database.idx_LocalProcessed(electrodes_row_idx);
                     row_electrode_id = electrodes_database.electrode(electrodes_row_idx);
+                    row_cluster_label = electrodes_database.cluster_name{electrodes_row_idx};
 
-                    if row_align == 2
-                        database_row = database.data_per_electrode{database.sub_num == row_sub};
-                    elseif row_align == 1
-                        database_row = database.onset_data_per_electrode{database.sub_num == row_sub};
+                    if isempty(row_cluster_label)
+                        electrodes_database.cluster_name{electrodes_row_idx} = 'NaN';
+                        electrodes_database.article_cluster_name{electrodes_row_idx} = 'NaN';
                     end
 
-                    electrodes_database.feat_set(electrodes_row_idx) = {create_features(obj, row_electrode_id, database_row{row_idx_LocalProcessed})};
+                    if ~isnan(row_cluster_label) & ~strcmp(row_cluster_label, 'NaN')
+                        dynamic_row_idx = ismember(obj.dynamic_window_timings.kuzdeba_cluster_label, row_cluster_label);
+                    end
 
-                    if isempty(electrodes_database.cluster_name{electrodes_row_idx})
-                        electrodes_database.cluster_name{electrodes_row_idx} = 'NaN';
+                    if any(dynamic_row_idx)
+                        dynamic_timings_row = obj.dynamic_window_timings(dynamic_row_idx, :);
+                        article_cluster_label = dynamic_timings_row.article_cluster_label{1};
+
+                        electrodes_database.article_cluster_name{electrodes_row_idx} = article_cluster_label;
+
+                        if row_align == 2
+                            database_row = database.stim_data_per_electrode{database.sub_num == row_sub};
+                            alignment = 'stim';
+                        elseif row_align == 1
+                            database_row = database.onset_data_per_electrode{database.sub_num == row_sub};
+                            alignment = 'onset';
+                        end
+
+                        shortened_data = shorten_electrode_epoch(database_row{row_idx_LocalProcessed}, ...
+                                                                dynamic_timings_row.start_ms_adjusted, ...
+                                                                dynamic_timings_row.end_ms_adjusted, ...
+                                                                alignment);
+
+                        electrodes_database.feat_set(electrodes_row_idx) = {create_features(obj, row_electrode_id, shortened_data, dynamic_timings_row)};
+                    else
+                        electrodes_database.feat_set(electrodes_row_idx) = cell(1);
                     end
                 end
                 edb_row_num = table([1:height(electrodes_database)]', 'VariableNames', {'edb_row_num'});
@@ -208,24 +237,3 @@ classdef parametersClass < dynamicprops
     end
 end
 
-function feat_table = create_features(params, electrode_num, short_array)
-% Helper function for generate_database
-sample_freq = 1000;
-window_samples = sample_freq * (params.window / 1000);
-stride_samples = sample_freq * (params.stride / 1000);
-
-if ndims(short_array) == 2
-    movmean_array = movmean(short_array, window_samples, 2, 'Endpoints', 'discard');
-    stride_idxs = 1:stride_samples:size(movmean_array, 2);
-    movmean_array = movmean_array(:, stride_idxs);
-end
-
-feat_labels_list = {};
-
-for window_idx = 1:size(movmean_array, 2)
-    feat_labels_list{window_idx} = sprintf('e%dw%d', electrode_num, window_idx);
-end
-
-feat_table = array2table(movmean_array, 'VariableNames', feat_labels_list);
-
-end

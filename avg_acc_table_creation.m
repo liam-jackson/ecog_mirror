@@ -29,9 +29,8 @@ for class_label_idx = 1:length(class_labels)
     avg_acc_table = [avg_acc_table, t_temp];
 end
 avg_acc_table = [table(p.sub_nums', 'VariableNames', {'sub_num'}), avg_acc_table]
-save(fullfile(p.grouping_path, p.current_group_value, 'avg_acc_table_e2000_w50_s25.mat'), 'avg_acc_table');
-
+save(fullfile(p.grouping_path, p.current_group_value, sprintf("avg_acc_table_%s.mat",p.times_label)), 'avg_acc_table');
 %%
-load(fullfile(p.grouping_path, p.current_group_value, 'avg_acc_table_e2000_w50_s25.mat'), 'avg_acc_table');
+load(fullfile(p.grouping_path, p.current_group_value, sprintf("avg_acc_table_%s.mat",p.times_label)), 'avg_acc_table');
 
 

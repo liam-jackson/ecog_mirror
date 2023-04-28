@@ -161,8 +161,8 @@ classdef parametersClass < dynamicprops
                         database_row_temp.(table_col) = {data_per_electrode};
                     end
                     database = stack_tables(database, database_row_temp);
-                    save(fullfile(obj.times_path, 'database.mat'), 'database', '-v7.3');
                 end
+                save(fullfile(obj.times_path, 'database.mat'), 'database', '-v7.3');
             else
                 fprintf('Loading generic database... ');
                 database = load(fullfile(obj.times_path, 'database.mat')).database;
